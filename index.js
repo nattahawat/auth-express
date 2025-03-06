@@ -43,17 +43,79 @@ const initMySQL = async () => {
 /* เราจะแก้ไข code ที่อยู่ตรงกลาง */
 
 app.post('/api/register', async (req, res) => {
-  const { email, password } = req.body;
-  const userData = {
-    email,
-    password
+  try{
+    const { email, password } = req.body;
+    const passwordHash = await bcrypt.hash(password, 10)
+    const userData = {
+      email,
+      password: passwordHash
+    }
+    const [results] = await conn.query('INSERT INTO users SET ?', userData);
+    res.json({ 
+      message: 'Register success',
+      results
+    })
+  }catch(error){
+    console.log('error',error)
+    res.json({message: 'Register failed'})
   }
-  const [results] = await conn.query('INSERT INTO users SET ?', userData);
-  res.json({ 
-    message: 'Register success',
-    results
-  })
 });
+
+app.post('/api/login', async (req, res) => {
+  try{
+    const { email, password } = req.body;
+    const [results] = await conn.query('SELECT * FROM users WHERE email = ?', [email]);
+    const userData = results[0];
+    const match = await bcrypt.compare(password, userData.password)
+    if(!match){
+      res.status(400).json({
+        message: 'Login failed wrong email or password'
+      })
+      return false
+    }
+    //ส้ราง token
+    const token = jwt.sign({ email, role:'admin'}, secret,{ expiresIn: '1h' });
+
+    res.json({
+      message: 'Login success',
+      token
+    })
+  }catch(error){
+    console.log('error',error)
+    res.status(401).json({
+      message: 'Login failed',
+      error
+    })
+  }
+})
+
+app.get('/api/users', async (req, res) => {
+  try{
+    const authHeader = req.headers['authorization'];
+    let authToken = ''
+    if(authHeader){
+      authToken = authHeader.split(' ')[1]
+    }
+    console.log('authToken',authToken)
+    const user = jwt.verify(authToken, secret);
+    console.log('user',user)
+
+    const [checkResults] = await conn.query('SELECT * FROM users WHERE email = ?', [user.email]);
+    if(!checkResults[0]) {
+      throw { message: 'user not found' } 
+    }
+    const [results] = await conn.query('SELECT * FROM users');
+    res.json({
+      users: results[0]
+    })
+  }catch(error){
+    console.log('error',error)
+    res.status(403).json({
+      message: 'Authention failed',
+      error
+    })
+  }
+})
 
 // Listen
 app.listen(port, async () => {
