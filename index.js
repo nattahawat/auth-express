@@ -73,12 +73,11 @@ app.post('/api/login', async (req, res) => {
       })
       return false
     }
-    //ส้ราง token
-    const token = jwt.sign({ email, role:'admin'}, secret,{ expiresIn: '1h' });
+    req.session.userId = userData.id;
+    req.session.user = userData;
 
     res.json({
       message: 'Login success',
-      token
     })
   }catch(error){
     console.log('error',error)
@@ -91,19 +90,13 @@ app.post('/api/login', async (req, res) => {
 
 app.get('/api/users', async (req, res) => {
   try{
-    const authHeader = req.headers['authorization'];
-    let authToken = ''
-    if(authHeader){
-      authToken = authHeader.split(' ')[1]
+   
+    if(!req.session.userId){
+      throw { message: 'Auth fail' } 
     }
-    console.log('authToken',authToken)
-    const user = jwt.verify(authToken, secret);
-    console.log('user',user)
-
-    const [checkResults] = await conn.query('SELECT * FROM users WHERE email = ?', [user.email]);
-    if(!checkResults[0]) {
-      throw { message: 'user not found' } 
-    }
+    console.log('req.session',req.session)
+    console.log(req.sessionID)
+    
     const [results] = await conn.query('SELECT * FROM users');
     res.json({
       users: results[0]
